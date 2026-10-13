@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Problem Generator</title>
+    <style>
+        body { font-family: system-ui, sans-serif; background: #f1f5f9; padding: 20px; margin: 0; }
+        .generator-container { max-width: 460px; margin: 20px auto; padding: 25px; background: #ffffff; border: 2px solid #e2e8f0; border-radius: 14px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); font-family: system-ui, -apple-system, sans-serif; }
+        .gen-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .gen-header span { background: #fef3c7; color: #d97706; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+        .gen-header h3 { margin: 0; color: #0f172a; font-size: 18px; font-weight: 700; }
+        .problem-display { background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin-bottom: 16px; min-height: 60px; display: flex; align-items: center; }
+        #generatedProblem { margin: 0; font-size: 15px; color: #334155; line-height: 1.5; font-style: italic; }
+        .gen-actions { display: flex; gap: 10px; }
+        .btn-gen { flex: 2; background: #059669; color: white; border: none; padding: 12px; font-size: 14px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: background 0.2s; }
+        .btn-gen:hover { background: #047857; }
+        .btn-ans { flex: 1; background: #64748b; color: white; border: none; padding: 12px; font-size: 14px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: background 0.2s; }
+        .btn-ans:hover:not([disabled]) { background: #475569; }
+        .btn-ans:disabled { opacity: 0.5; cursor: not-allowed; }
+        .answer-box { margin-top: 16px; padding: 15px; background: #ecfdf5; border-left: 4px solid #10b981; border-radius: 4px; }
+        .answer-box h4 { margin: 0 0 6px 0; color: #065f46; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .answer-box p { margin: 0; font-size: 15px; color: #047857; line-height: 1.5; }
+    </style>
+</head>
+<body>
+
+<div class="generator-container">
+    <div class="gen-header">
+        <h3>Word Problem Generator</h3>
+    </div>
+    
+    <div class="problem-display">
+        <p id="generatedProblem">Click the button below to generate a random physics motion problem.</p>
+    </div>
+
+    <div class="gen-actions">
+        <button onclick="generateNewProblem()" class="btn-gen">Generate New Problem</button>
+        <button onclick="toggleAnswer()" id="btnAnswer" class="btn-ans" disabled>Show Answer</button>
+    </div>
+
+    <div id="answerBox" class="answer-box" style="display: none;">
+        <h4>Answer Key & Setup:</h4>
+        <p id="answerText"></p>
+    </div>
+</div>
+
+<script>
+let currentAnswer = "";
+
+const scenarios = [
+    {
+        type: "v",
+        templates: [
+            "A roller coaster accelerates from rest down a steep hill at {a} m/s² for {t} seconds. What is its final velocity at the bottom of the hill?",
+            "A train traveling at an initial speed of {u} m/s begins accelerating steadily at a rate of {a} m/s². What speed does the train reach after {t} seconds?",
+            "A rocket launcher fires a projectile with an initial velocity of {u} m/s. If it accelerates at {a} m/s² for {t} seconds, find its final velocity."
+        ]
+    },
+    {
+        type: "a",
+        templates: [
+            "A sports car traveling at {u} m/s speeds up steadily to {v} m/s over a time frame of {t} seconds. What was the acceleration of the car?",
+            "A runner sprints off the starting blocks from rest and reaches a maximum velocity of {v} m/s exactly {t} seconds later. Calculate their acceleration.",
+            "A commercial jet decreases its velocity from {u} m/s down to {v} m/s over {t} seconds as it prepares to touch down. What is its deceleration rate?"
+        ]
+    },
+    {
+        type: "t",
+        templates: [
+            "How long will it take an electric scooter to go from a complete stop to a final speed of {v} m/s if it has a constant acceleration of {a} m/s²?",
+            "A motorcycle traveling at {u} m/s hits the throttle and accelerates at {a} m/s² until it reaches a speed of {v} m/s. How many seconds did this take?",
+            "A delivery drone moving at {u} m/s accelerates at a rate of {a} m/s² to reach a top velocity of {v} m/s. Find the total time elapsed."
+        ]
+    }
+];
+
+// --- RUNS ON PAGE LOAD ---
+window.onload = function() {
+    const savedProblem = localStorage.getItem('physics_savedProblem');
+    const savedAnswerText = localStorage.getItem('physics_savedAnswerText');
+    const savedBoxState = localStorage.getItem('physics_savedBoxState');
+
+    if (savedProblem && savedAnswerText) {
+        currentAnswer = savedAnswerText;
+        document.getElementById('generatedProblem').innerHTML = savedProblem;
+        document.getElementById('btnAnswer').disabled = false;
+        
+        if (savedBoxState === "block") {
+            document.getElementById('answerText').innerHTML = currentAnswer;
+            document.getElementById('answerBox').style.display = "block";
+            document.getElementById('btnAnswer').innerText = "Hide Answer";
+        }
+    }
+};
+
+function generateNewProblem() {
+    document.getElementById('answerBox').style.display = "none";
+    document.getElementById('btnAnswer').innerText = "Show Answer";
+    
+    const category = scenarios[Math.floor(Math.random() * scenarios.length)];
+    let template = category.templates[Math.floor(Math.random() * category.templates.length)];
+    
+    let u = Math.floor(Math.random() * 15);
+    let t = Math.floor(Math.random() * 12) + 3;
+    let a, v;
+    
+    if (category.type === "v") {
+        if (template.includes("from rest")) u = 0;
+        a = (Math.random() * 5 + 1).toFixed(1);
+        v = (u + (parseFloat(a) * t)).toFixed(2);
+        
+        template = template.replace("{u}", u).replace("{a}", a).replace("{t}", t);
+        currentAnswer = `<b>Formula:</b> v = u + at<br><b>Setup:</b> v = ${u} + (${a} × ${t})<br><b>Answer:</b> Final Velocity (v) = <b>${v} m/s</b>`;
+        
+    } else if (category.type === "a") {
+        if (template.includes("from rest")) u = 0;
+        if (template.includes("decreases") || template.includes("deceleration")) {
+            u = Math.floor(Math.random() * 30) + 25;
+            v = Math.floor(Math.random() * 15) + 5;
+        } else {
+            v = u + Math.floor(Math.random() * 30) + 10;
+        }
+        a = ((v - u) / t).toFixed(2);
+        
+        template = template.replace("{u}", u).replace("{v}", v).replace("{t}", t);
+        currentAnswer = `<b>Formula:</b> a = (v - u) / t<br><b>Setup:</b> a = (${v} - ${u}) / ${t}<br><b>Answer:</b> Acceleration (a) = <b>${a} m/s²</b>`;
+        
+    } else if (category.type === "t") {
+        if (template.includes("complete stop")) u = 0;
+        a = (Math.random() * 4 + 1).toFixed(1);
+        v = u + Math.floor(Math.random() * 25) + 10;
+        t = ((v - u) / parseFloat(a)).toFixed(2);
+        
+        template = template.replace("{u}", u).replace("{v}", v).replace("{a}", a);
+        currentAnswer = `<b>Formula:</b> t = (v - u) / a<br><b>Setup:</b> t = (${v} - ${u}) / ${a}<br><b>Answer:</b> Time (t) = <b>${t} seconds</b>`;
+    }
+    
+    document.getElementById('generatedProblem').innerHTML = template;
+    document.getElementById('btnAnswer').disabled = false;
+
+    // --- SAVE LOGIC ---
+    localStorage.setItem('physics_savedProblem', template);
+    localStorage.setItem('physics_savedAnswerText', currentAnswer);
+    localStorage.setItem('physics_savedBoxState', "none");
+}
+
+function toggleAnswer() {
+    const answerBox = document.getElementById('answerBox');
+    const btn = document.getElementById('btnAnswer');
+    
+    if (answerBox.style.display === "none") {
+        document.getElementById('answerText').innerHTML = currentAnswer;
+        answerBox.style.display = "block";
+        btn.innerText = "Hide Answer";
+        localStorage.setItem('physics_savedBoxState', "block");
+    } else {
+        answerBox.style.display = "none";
+        btn.innerText = "Show Answer";
+        localStorage.setItem('physics_savedBoxState', "none");
+    }
+}
+</script>
+
+</body>
+</html>
