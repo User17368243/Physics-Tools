@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real World Word Problem Parser</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: transparent;
+            margin: 0;
+            padding: 10px;
+        }
+        .advanced-parser-container { 
+            max-width: 460px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            background: #ffffff; 
+            border: 2px solid #e2e8f0; 
+            border-radius: 14px; 
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); 
+            box-sizing: border-box;
+        }
+        .advanced-parser-container h3 { margin: 0 0 4px 0; color: #0f172a; font-size: 18px; font-weight: 700; }
+        .parser-sub { margin: 0 0 16px 0; font-size: 13px; color: #64748b; line-height: 1.4; }
+        #physicsQuestion { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; font-size: 14px; resize: vertical; line-height: 1.5; font-family: inherit; }
+        #physicsQuestion:focus { outline: 2px solid #2563eb; border-color: transparent; }
+        .extract-btn { width: 100%; background: #2563eb; color: white; border: none; padding: 12px; font-size: 15px; font-weight: 600; border-radius: 8px; cursor: pointer; margin-top: 12px; transition: background 0.2s; }
+        .extract-btn:hover { background: #1d4ed8; }
+        .results-box { margin-top: 20px; padding: 15px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; }
+        .results-box h4 { margin: 0 0 12px 0; color: #334155; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
+        .var-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .var-card { padding: 10px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; display: flex; flex-direction: column; }
+        .var-label { font-size: 11px; color: #64748b; font-weight: 500; }
+        .var-val { font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 2px; }
+        .parser-notes { margin: 12px 0 0 0; font-size: 12px; color: #2563eb; font-style: italic; display: none; line-height: 1.4; }
+
+        /* History Panel Styles */
+        .history-section { margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 14px; }
+        .history-title { font-size: 13px; font-weight: 700; color: #334155; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .clear-btn { background: none; border: none; color: #ef4444; font-size: 11px; cursor: pointer; font-weight: 600; padding: 0; }
+        .history-list { max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+        .history-item { background: #f8fafc; border: 1px solid #f1f5f9; padding: 8px 10px; border-radius: 6px; font-size: 12px; color: #334155; cursor: pointer; }
+        .history-item:hover { background: #f1f5f9; border-color: #cbd5e1; }
+        .history-text { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #1e293b; }
+        .history-meta { color: #64748b; font-size: 11px; margin-top: 2px; }
+    </style>
+</head>
+<body>
+
+<div class="advanced-parser-container">
+    <h3>Real World Word Problem Parser</h3>
+    <p class="parser-sub">Isolates variables from inputted word problems</p>
+    
+    <textarea id="physicsQuestion" rows="4" placeholder="Example: A roller coaster is moving at 25 m/s at the bottom of a hill. Three seconds later it reaches the top of the hill moving at 10 m/s. What was the acceleration of the coaster?"></textarea>
+    
+    <button onclick="extractPhysicsData()" class="extract-btn">Analyze Text Problem</button>
+    
+    <div id="extractionResults" class="results-box" style="display: none;">
+        <h4>Parsed Physics Variables:</h4>
+        <div class="var-grid">
+            <div class="var-card"><span class="var-label">Initial Speed/Velocity (u):</span> <span id="res_u" class="var-val">--</span></div>
+            <div class="var-card"><span class="var-label">Final Speed/Velocity (v):</span> <span id="res_v" class="var-val">--</span></div>
+            <div class="var-card"><span class="var-label">Constant Acceleration (a):</span> <span id="res_a" class="var-val">--</span></div>
+            <div class="var-card"><span class="var-label">Total Time (t):</span> <span id="res_t" class="var-val">--</span></div>
+            <div class="var-card" style="grid-column: span 2;"><span class="var-label">Net Displacement / Distance (d):</span> <span id="res_d" class="var-val">--</span></div>
+        </div>
+        <p id="parserNotes" class="parser-notes"></p>
+    </div>
+
+    <div class="history-section">
+        <div class="history-title">
+            <span>Recent Problems Analyzed</span>
+            <button onclick="clearHistory()" class="clear-btn">Clear</button>
+        </div>
+        <div id="historyList" class="history-list"></div>
+    </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'physics_problem_parser_history';
+
+document.addEventListener('DOMContentLoaded', loadHistory);
+
+function extractPhysicsData() {
+    const rawText = document.getElementById('physicsQuestion').value;
+    if (!rawText.trim()) return;
+
+    // 1. Text Normalization
+    let text = rawText.toLowerCase().replace(/[\,\?]/g, '');
+    const numMap = {
+        'zero': '0', 'one': '1', 'two': '2', 'three': '3', 'four': '4',
+        'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9', 'ten': '10'
+    };
+    text = text.replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten)\b/g, m => numMap[m]);
+
+    let u = NaN, v = NaN, a = NaN, t = NaN, d = NaN;
+    let notes = [];
+
+    // 2. Deceleration Signals
+    const deceleratingKeywords = ["decelerate", "deceleration", "hits the brakes", "slowing down", "slows down", "brakes applied", "retardation", "brought to rest"];
+    let isDecelerating = deceleratingKeywords.some(kw => text.includes(kw));
+
+    // 3. Implicit Zero-State Triggers
+    if (["starts from rest", "moving from rest", "drops", "dropped", "released from rest", "falls from"].some(kw => text.includes(kw))) {
+        u = 0;
+        notes.push("ℹ️ Initial Velocity (u) set to 0 m/s ('dropped' / 'from rest').");
+    }
+    if (["comes to a stop", "comes to rest", "to a complete stop", "finally stops"].some(kw => text.includes(kw))) {
+        v = 0;
+        notes.push("ℹ️ Final Velocity (v) set to 0 m/s ('comes to a stop').");
+    }
+
+    // Helper conversion functions
+    const parseVelocity = (valStr, unitStr) => {
+        let val = parseFloat(valStr);
+        if (!unitStr) return val;
+        if (unitStr.includes("km/h") || unitStr.includes("kph") || unitStr.includes("km/hr")) return parseFloat((val / 3.6).toFixed(2));
+        if (unitStr.includes("mph")) return parseFloat((val * 0.44704).toFixed(2));
+        return val;
+    };
+
+    const parseDistance = (valStr, unitStr) => {
+        let val = parseFloat(valStr);
+        if (!unitStr) return val;
+        if (unitStr.includes("km")) return val * 1000;
+        if (unitStr.includes("feet") || unitStr.includes("ft")) return parseFloat((val * 0.3048).toFixed(2));
+        return val;
+    };
+
+    // 4. Extract Acceleration (Explicit g or m/s²) FIRST
+    const gMatch = text.match(/g\s*=\s*([+-]?\d*\.?\d+)/) || text.match(/([+-]?\d*\.?\d+)\s*(m\/s²|m\/s\^2|m\/s2)/);
+    if (gMatch) {
+        a = parseFloat(gMatch[1]);
+        if (text.includes("drops") || text.includes("dropped") || text.includes("falls") || text.includes("free fall")) {
+            a = Math.abs(a);
+        } else if (isDecelerating && a > 0) {
+            a = -a;
+        }
+    } else if (text.includes("free fall") || text.includes("drops") || text.includes("dropped")) {
+        a = 9.8;
+        notes.push("🌍 Standard acceleration due to gravity (g) set to 9.8 m/s².");
+    }
+
+    // 5. Extract Time
+    const timeMatch = text.match(/(?<!m\/)(?<!ft\/)([+-]?\d*\.?\d+)\s*(seconds|second|sec|\bs\b|minutes|min|hours|hrs)/);
+    if (timeMatch) {
+        t = parseFloat(timeMatch[1]);
+        if (timeMatch[2].includes("min")) { t *= 60; notes.push("⏳ Converted minutes to seconds."); }
+        if (timeMatch[2].includes("hr")) { t *= 3600; notes.push("⏳ Converted hours to seconds."); }
+    }
+
+    // 6. Extract Explicit Velocities
+    const transitionRegex = /(?:from|speed of|velocity of|at)\s*([+-]?\d*\.?\d+)\s*(m\/s|km\/h|kph|km\/hr|mph)?\s*(?:to|and reaches|accelerates to)\s*([+-]?\d*\.?\d+)\s*(m\/s|km\/h|kph|km\/hr|mph)?/;
+    const transitionMatch = text.match(transitionRegex);
+
+    if (transitionMatch) {
+        if (isNaN(u)) u = parseVelocity(transitionMatch[1], transitionMatch[2]);
+        if (isNaN(v)) v = parseVelocity(transitionMatch[3], transitionMatch[4] || transitionMatch[2]);
+    } else {
+        const velMatches = [...text.matchAll(/(?<!g\s*=\s*)(?<!g=)([+-]?\d*\.?\d+)\s*(m\/s|km\/h|kph|km\/hr|mph)(?![²\^2])/g)];
+        if (velMatches.length >= 2) {
+            if (isNaN(u)) u = parseVelocity(velMatches[0][1], velMatches[0][2]);
+            if (isNaN(v)) v = parseVelocity(velMatches[1][1], velMatches[1][2]);
+        } else if (velMatches.length === 1) {
+            let val = parseVelocity(velMatches[0][1], velMatches[0][2]);
+            if (isNaN(u) && !text.includes("final velocity") && !text.includes("velocity of the ball")) u = val;
+            else if (isNaN(v)) v = val;
+        }
+    }
+
+    // 7. Extract Distance
+    const distMatch = text.match(/([+-]?\d*\.?\d+)\s*(meters|meter|\bm\b|km|kilometers|feet|ft)/);
+    if (distMatch && !distMatch[0].includes("m/s")) {
+        d = parseDistance(distMatch[1], distMatch[2]);
+    }
+
+    // 8. Kinematic Solvers
+    if (isNaN(v) && !isNaN(u) && !isNaN(a) && !isNaN(t)) {
+        v = parseFloat((u + a * t).toFixed(2));
+        notes.push("🧮 Solved Final Velocity: v = u + at");
+    } else if (isNaN(t) && !isNaN(v) && !isNaN(u) && !isNaN(a) && a !== 0) {
+        t = parseFloat(((v - u) / a).toFixed(2));
+        notes.push("🧮 Solved Time: t = (v - u) / a");
+    } else if (isNaN(a) && !isNaN(v) && !isNaN(u) && !isNaN(t) && t !== 0) {
+        a = parseFloat(((v - u) / t).toFixed(2));
+        notes.push("🧮 Solved Acceleration: a = (v - u) / t");
+    } else if (isNaN(u) && !isNaN(v) && !isNaN(a) && !isNaN(t)) {
+        u = parseFloat((v - a * t).toFixed(2));
+        notes.push("🧮 Solved Initial Velocity: u = v - at");
+    }
+
+    if (isNaN(d) && !isNaN(u) && !isNaN(a) && !isNaN(t)) {
+        d = parseFloat((u * t + 0.5 * a * t * t).toFixed(2));
+        notes.push("🧮 Solved Displacement: d = ut + ½at²");
+    }
+
+    displayResults(u, v, a, t, d, notes);
+    saveToHistory(rawText, { u, v, a, t, d });
+}
+
+function displayResults(u, v, a, t, d, notes) {
+    document.getElementById('res_u').innerText = !isNaN(u) ? u + " m/s" : "--";
+    document.getElementById('res_v').innerText = !isNaN(v) ? v + " m/s" : "--";
+    document.getElementById('res_a').innerText = !isNaN(a) ? a + " m/s²" : "--";
+    document.getElementById('res_t').innerText = !isNaN(t) ? t + " s" : "--";
+    document.getElementById('res_d').innerText = !isNaN(d) ? d + " meters" : "--";
+
+    const notesElement = document.getElementById('parserNotes');
+    if (notes && notes.length > 0) {
+        notesElement.innerHTML = notes.join('<br>');
+        notesElement.style.display = "block";
+    } else {
+        notesElement.style.display = "none";
+    }
+    document.getElementById('extractionResults').style.display = "block";
+}
+
+function saveToHistory(question, results) {
+    let history = [];
+    try {
+        history = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    } catch(e) {
+        console.warn("Storage restricted", e);
+    }
+
+    history.unshift({ question, results });
+    if (history.length > 8) history.pop();
+
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+    } catch(e) {
+        console.warn("Could not save to localStorage", e);
+    }
+    renderHistory(history);
+}
+
+function loadHistory() {
+    let history = [];
+    try {
+        history = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    } catch(e) {
+        console.warn("Storage restricted", e);
+    }
+    renderHistory(history);
+}
+
+function renderHistory(history) {
+    const list = document.getElementById('historyList');
+    list.innerHTML = "";
+    if (history.length === 0) {
+        list.innerHTML = "<div style='color: #94a3b8; font-size: 11px;'>No recent problems analyzed.</div>";
+        return;
+    }
+
+    history.forEach((item) => {
+        const div = document.createElement('div');
+        div.className = 'history-item';
+        div.onclick = () => {
+            document.getElementById('physicsQuestion').value = item.question;
+            displayResults(item.results.u, item.results.v, item.results.a, item.results.t, item.results.d, []);
+        };
+        div.innerHTML = `
+            <div class="history-text">${escapeHtml(item.question)}</div>
+            <div class="history-meta">u:${formatVal(item.results.u)} | v:${formatVal(item.results.v)} | a:${formatVal(item.results.a)} | t:${formatVal(item.results.t)}</div>
+        `;
+        list.appendChild(div);
+    });
+}
+
+function clearHistory() {
+    try {
+        localStorage.removeItem(STORAGE_KEY);
+    } catch(e) {}
+    renderHistory([]);
+}
+
+function formatVal(val) { return !isNaN(val) ? val : "--"; }
+function escapeHtml(text) { return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace/>/g, "&gt;"); }
+</script>
+
+</body>
+</html>
