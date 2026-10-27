@@ -102,7 +102,7 @@ function extractPhysicsData() {
     let isDecelerating = deceleratingKeywords.some(kw => text.includes(kw));
 
     // 3. Implicit Zero-State Triggers
-    if (["starts from rest", "moving from rest", "drops", "dropped", "released from rest", "falls from"].some(kw => text.includes(kw))) {
+    if (["starts from rest", "moving from rest", "drops", "dropped", "released from rest", "falls from", "from rest"].some(kw => text.includes(kw))) {
         u = 0;
         notes.push("ℹ️ Initial Velocity (u) set to 0 m/s ('dropped' / 'from rest').");
     }
